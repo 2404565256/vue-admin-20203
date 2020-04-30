@@ -20,13 +20,14 @@
         size="medium"
       >
         <el-form-item prop="username" class="item-from">
-          <label>邮箱</label>
-          <el-input type="text" v-model="ruleForm.username" autocomplete="off"></el-input>
+          <label for="username">邮箱</label>
+          <el-input id="username" type="text" v-model="ruleForm.username" autocomplete="off"></el-input>
         </el-form-item>
 
         <el-form-item prop="password" class="item-from">
-          <label>密码</label>
+          <label for="password">密码</label>
           <el-input
+            id="password"
             type="text"
             v-model="ruleForm.password"
             autocomplete="off"
@@ -36,8 +37,9 @@
         </el-form-item>
 
         <el-form-item prop="passwords" v-show="model=='register'" class="item-from">
-          <label>重复密码</label>
+          <label for="passwords">重复密码</label>
           <el-input
+            id="passwords"
             type="text"
             v-model="ruleForm.passwords"
             autocomplete="off"
@@ -47,19 +49,24 @@
         </el-form-item>
 
         <el-form-item prop="code">
-          <label>验证</label>
+          <label for="code">验证</label>
           <el-row :gutter="20">
             <el-col :span="15">
-              <el-input v-model.number="ruleForm.code" minlength="6" maxlength="6"></el-input>
+              <el-input id="code" v-model.number="ruleForm.code" minlength="6" maxlength="6"></el-input>
             </el-col>
             <el-col :span="9">
-              <el-button type="success" class="block">获取验证码</el-button>
+              <el-button type="success" class="block" @click="getSmas()">获取验证码</el-button>
             </el-col>
           </el-row>
         </el-form-item>
 
         <el-form-item>
-          <el-button type="danger" class="login-btn block" @click="submitForm('ruleForm')">提交</el-button>
+          <el-button
+            type="danger"
+            class="login-btn block"
+            @click="submitForm('ruleForm')"
+            :disabled="loginButtonStatus"
+          >{{model=='login'?"登录":"注册"}}</el-button>
         </el-form-item>
       </el-form>
     </div>
@@ -67,6 +74,7 @@
 </template>
 
 <script>
+import { GetSms } from "@/api/login";
 import { reactive, ref, isRef, toRefs, onMounted } from "@vue/composition-api";
 import {
   stripscript,
@@ -76,7 +84,18 @@ import {
 } from "@/utils/validate";
 export default {
   name: "login",
-  setup(props, { refs }) {
+  // setup(props, context) {
+  //   console.log(context);
+  /**
+   * attrs: (...)       ==  this.$attrs
+   * emit: (...)        ==  this.$emit
+   * listeners: (...)   ==  this.$listeners
+   * parent: (...)      ==  this.$parent
+   * refs: (...)        ==  this.$refs
+   * root: (...)        ==  this
+   */
+
+  setup(props, { refs, root }) {
     //验证用户名
     let validateUsername = (rule, value, callback) => {
       if (value === "") {
@@ -146,6 +165,8 @@ export default {
 
     // 模块值
     const model = ref("login");
+    // 登录按钮禁用状态
+    const loginButtonStatus = ref(true);
 
     // 表单绑定数据
     const ruleForm = reactive({
@@ -179,7 +200,39 @@ export default {
       model.value = data.type;
     };
 
+    /**
+     * 获取验证码
+     */
+    const getSmas = () => {
+      if (ruleForm.username == "") {
+        root.$message.error("邮箱不能为空！！");
+        return false;
+      }
+
+      if (validateEmail(ruleForm.username)) {
+        root.$message.error("邮箱格式有误，请重新输入！！");
+        return false;
+      }
+
+      // 获取验证码
+      let requestData = {
+        username: ruleForm.username,
+        module: "login"
+      };
+
+      //请求接口
+      GetSms(requestData)
+        .then(response => {})
+        .catch(error => {
+          console.log(error);
+        });
+    };
+
+    /**
+     * 提交表单
+     */
     const submitForm = formName => {
+      alert("lf");
       refs[formName].validate(valid => {
         if (valid) {
           alert("submit!");
@@ -194,7 +247,9 @@ export default {
      * 生命周期
      */
     // 挂载完成后
-    onMounted(() => {});
+    onMounted(() => {
+      // console.log(process.env.VUE_APP_ABC);
+    });
 
     return {
       menuTab,
@@ -202,7 +257,9 @@ export default {
       ruleForm,
       rules,
       toggleMenu,
-      submitForm
+      submitForm,
+      getSmas,
+      loginButtonStatus
     };
   }
 };
