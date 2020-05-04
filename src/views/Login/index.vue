@@ -15,7 +15,7 @@
         :model="ruleForm"
         status-icon
         :rules="rules"
-        ref="ruleForm"
+        ref="loginFome"
         class="login-form"
         size="medium"
       >
@@ -28,7 +28,7 @@
           <label for="password">密码</label>
           <el-input
             id="password"
-            type="text"
+            type="password"
             v-model="ruleForm.password"
             autocomplete="off"
             minlength="6"
@@ -40,7 +40,7 @@
           <label for="passwords">重复密码</label>
           <el-input
             id="passwords"
-            type="text"
+            type="password"
             v-model="ruleForm.passwords"
             autocomplete="off"
             minlength="6"
@@ -52,10 +52,15 @@
           <label for="code">验证</label>
           <el-row :gutter="20">
             <el-col :span="15">
-              <el-input id="code" v-model.number="ruleForm.code" minlength="6" maxlength="6"></el-input>
+              <el-input id="code" v-model="ruleForm.code" minlength="6" maxlength="6"></el-input>
             </el-col>
             <el-col :span="9">
-              <el-button type="success" class="block" @click="getSmas()">获取验证码</el-button>
+              <el-button
+                type="success"
+                class="block"
+                @click="getSmas()"
+                :disabled="codeButtonStatus.status"
+              >{{codeButtonStatus.text}}</el-button>
             </el-col>
           </el-row>
         </el-form-item>
@@ -64,7 +69,7 @@
           <el-button
             type="danger"
             class="login-btn block"
-            @click="submitForm('ruleForm')"
+            @click="submitForm('loginFome')"
             :disabled="loginButtonStatus"
           >{{model=='login'?"登录":"注册"}}</el-button>
         </el-form-item>
@@ -74,7 +79,9 @@
 </template>
 
 <script>
-import { GetSms } from "@/api/login";
+// base64加密、md5加密及sha1加密
+import sha1 from "js-sha1";
+import { GetSms, Register, Login } from "@/api/login";
 import { reactive, ref, isRef, toRefs, onMounted } from "@vue/composition-api";
 import {
   stripscript,
@@ -168,6 +175,15 @@ export default {
     // 登录按钮禁用状态
     const loginButtonStatus = ref(true);
 
+    //验证码状态
+    const codeButtonStatus = reactive({
+      status: false,
+      text: "获取验证码"
+    });
+
+    //倒计时
+    const timer = ref(null);
+
     // 表单绑定数据
     const ruleForm = reactive({
       username: "",
@@ -198,6 +214,27 @@ export default {
       data.current = true;
       //修改模块值
       model.value = data.type;
+      resetFromData();
+      //清除获取状态码定时器
+      clearCountDown();
+      loginButtonStatus.value = true;
+    };
+
+    /**
+     * 清除表单数据
+     */
+    const resetFromData = () => {
+      // 重置表单
+      refs.loginFome.resetFields();
+    };
+
+    /**
+     * 更新按钮的转态
+     */
+
+    const updatedButtonStatus = params => {
+      codeButtonStatus.status = params.status;
+      codeButtonStatus.text = params.text;
     };
 
     /**
@@ -217,30 +254,167 @@ export default {
       // 获取验证码
       let requestData = {
         username: ruleForm.username,
-        module: "login"
+        module: model.value
       };
 
-      //请求接口
-      GetSms(requestData)
-        .then(response => {})
-        .catch(error => {
-          console.log(error);
-        });
+      // 修改获取验证码按钮状态
+      updatedButtonStatus({
+        status: true,
+        text: "发送中"
+      });
+
+      //延时多长时间
+      setTimeout(() => {
+        //请求接口
+        GetSms(requestData)
+          .then(response => {
+            let data = response.data;
+            root.$message({
+              message: data.message,
+              type: "success"
+            });
+            // 启用登录注册按钮
+            loginButtonStatus.value = false;
+            // 调用定时器，倒计时
+            countdown(60);
+          })
+          .catch(error => {
+            console.log(error);
+          });
+      }, 500);
     };
 
     /**
      * 提交表单
      */
     const submitForm = formName => {
-      alert("lf");
+      console.log(model.value);
+
       refs[formName].validate(valid => {
         if (valid) {
-          alert("submit!");
+          model.value == "login" ? login() : register();
+          // alert("submit!");
         } else {
           console.log("error submit!!");
           return false;
         }
       });
+    };
+
+    /**
+     * 登录
+     */
+
+    const login = () => {
+      let requestData = {
+        username: ruleForm.username,
+        password: sha1(ruleForm.password),
+        code: ruleForm.code
+      };
+      root.$store.dispatch ("app/login", requestData).then(response => {
+          let data = response.data;
+          console.log(data);
+
+          root.$message({
+            message: data.message,
+            type: "success"
+          });
+
+          root.$router.push({
+            name: "Console"
+          });
+          //清除获取状态码定时器
+          clearCountDown();
+        })
+        .catch(error => {
+          console.log(error);
+        });
+      // Login(requestData)
+      //   .then(response => {
+      //     let data = response.data;
+      //     console.log(data);
+
+      //     root.$message({
+      //       message: data.message,
+      //       type: "success"
+      //     });
+
+      //     root.$router.push({
+      //       name: "Console"
+      //     });
+      //     //清除获取状态码定时器
+      //     clearCountDown();
+      //   })
+      //   .catch(error => {
+      //     console.log(error);
+      //   });
+    };
+
+    /**
+     * 注册
+     */
+    const register = () => {
+      let requestData = {
+        username: ruleForm.username,
+        password: sha1(ruleForm.password),
+        code: ruleForm.code,
+        module: "register"
+      };
+
+      Register(requestData)
+        .then(response => {
+          let data = response.data;
+          root.$message({
+            message: data.message,
+            type: "success"
+          });
+          //模拟注册成功
+          toggleMenu(menuTab[0]);
+          clearCountDown();
+        })
+        .catch(error => {
+          console.log(error);
+        });
+    };
+
+    /**
+     * 倒计时
+     */
+
+    const countdown = number => {
+      //判断定时器是否存在，存在则清除
+      if (timer.value) {
+        clearInterval(timer.value);
+      }
+
+      let time = number;
+      timer.value = setInterval(() => {
+        time--;
+        // console.log(time);
+        if (time === 0) {
+          clearInterval(timer.value);
+          updatedButtonStatus({
+            status: false,
+            text: "再次获取"
+          });
+        } else {
+          codeButtonStatus.text = `倒计时${time}秒`;
+        }
+      }, 1000);
+    };
+
+    /**
+     * 清除倒计时
+     */
+
+    const clearCountDown = () => {
+      // 还原验证码默认状态
+      updatedButtonStatus({
+        status: false,
+        text: "获取验证码"
+      });
+      //  清除倒计时
+      clearInterval(timer.value);
     };
 
     /**
@@ -259,7 +433,8 @@ export default {
       toggleMenu,
       submitForm,
       getSmas,
-      loginButtonStatus
+      loginButtonStatus,
+      codeButtonStatus
     };
   }
 };
